@@ -1,0 +1,105 @@
+---
+title: "sc-rnaseq_mRNA_counts from Single Cell Expression Atlas data"
+author: "Bruno Rodrigues"
+date: "2025-02-23"
+output: html_document
+---
+
+```
+# 1- Open the libraries used in this method
+
+ library(Matrix)
+ library(data.table)
+ library(writexl)
+ library(ggplot2)
+ 
+# 2- Define the correct files' path . Example as I used:
+
+ matrix_file <- "C:/Users/bruno/Downloads/New folder (3)/E-MTAB-10519.aggregated_filtered_normalised_counts.mtx"
+ 
+ genes_file <- "C:/Users/bruno/Downloads/New folder (3)/E-MTAB-10519.aggregated_filtered_normalised_counts.mtx_rows"
+ 
+ barcodes_file <- "C:/Users/bruno/Downloads/New folder (3)/E-MTAB-10519.aggregated_filtered_normalised_counts.mtx_cols"
+ 
+# 3- Read the matrix file
+ 
+ expr_matrix <- readMM(matrix_file)
+ 
+# 4- Read the name of genes and cells
+ 
+ genes <- fread(genes_file,header=FALSE)
+ barcodes <- fread(barcodes_file,header=FALSE) 
+ 
+# 5- Giving names to matrix's rows and columns 
+
+ rownames(expr_matrix) <- genes$V2  # Second column usually has the gene's name/ID 
+ colnames(expr_matrix) <- barcodes$V1 # # First column usually has the cells' IDs(barcode)
+ 
+ 
+# 6- Upload the marker genes for the particular Cell Type. Ex. for mb 2-5 cell type
+
+genes_alvo_file <- "C:/Users/bruno/Downloads/MB 2-5.tsv"
+genes_alvo <- fread(genes_alvo_file, header=FALSE)$V1
+
+# 7- Filer only the genes that belong to expr_matrix
+
+gene_list_filtered <- genes_alvo[genes_alvo %in% rownames(expr_matrix)]
+
+# 8- Verify if there are genes remaning after filter (somente caso eu veja que em values está NULL)
+
+if (length(gene_list_filtered) == 0) {
+  stop("None of the genes from the list are present in expr_matrix!")
+}
+
+# 9- Filter barcodes that express ALL genes from the list and higher than 5 CPM
+
+barcode_matches <- colSums(expr_matrix[gene_list_filtered[1:5], ] > 1) == 5
+
+# 10 - Count how many cells possess the criteria
+
+sum(barcode_matches)
+
+# 11- Select the barcodes that passed the criteria
+
+ expr_filtered <- expr_matrix[, barcode_matches, drop=FALSE]
+
+# 12 - Define the target mRNAs I want to look at
+
+genes_target <- c("FBgn0261403", "FBgn0038870")
+
+# 13- Get the target mRNAs expression
+
+expr_gene1 <- as.numeric(expr_filtered[genes_target[1], , drop=FALSE])
+expr_gene2 <- as.numeric(expr_filtered[genes_target[2], , drop=FALSE])
+
+# 14 - Select cells where at least one of the target mRNAs have expression > 0
+
+valid_cells <- (expr_gene1 > 0) | (expr_gene2 > 0)
+
+# 15 - Create a data.frame with the filtered values
+
+expr_genes_df <- data.frame(
+  FBgn0261403 = expr_gene1[valid_cells],
+  FBgn0038870 = expr_gene2[valid_cells]
+)
+
+# 16 - Define the path to save this file. Exemple I used:
+
+output_file <- "C:/Users/bruno/Downloads/expression_values.xlsx"
+
+# 17- Export to an Excel file
+
+write_xlsx(expr_genes_df, output_file)
+
+# 18 - Confirm message when done
+
+cat("File saved in:", output_file, "\n")
+
+
+#PS1: This give you the results for 1 cell type (in this case, MB2-5). With this code, you'll have to re-run steps 6-bellow for each cell type you want to analyze.
+
+#PS2: Be aware that, depending on your dataset, you'll have to manually check how many mRNA markers for cell types you'll need to use to get your cells of interest. The higher the number of mRNA markers, the higher will be your analysis stringency, which implies in less returned cells that possess the combination of such marker mRNAs > 5 cpm.
+```
+
+## R Markdown
+
